@@ -24,7 +24,10 @@ refs.loadMore.addEventListener('click', onLoadMoreClick);
 function onsub(e) {
   e.preventDefault();
   request = refs.input.value;
-
+  if (request === '') {
+    Notiflix.Notify.failure(`Please,type something.`);
+    return;
+  }
   refs.form.classList.add('search-form__submited');
   refs.gallery.innerHTML = '';
   createMarkup();
@@ -41,7 +44,7 @@ async function createMarkup() {
         );
         return;
       }
-      
+
       Notiflix.Notify.success(`Hooray! We found ${totalHits} images.`);
       response.data.hits.forEach(image => {
         array.push(
@@ -70,11 +73,14 @@ async function createMarkup() {
 </a>`
         );
       });
-        refs.gallery.insertAdjacentHTML('beforeend', array.join(''));
-        refs.loadMore.classList.remove('hidden');
+      refs.gallery.insertAdjacentHTML('beforeend', array.join(''));
+      refs.loadMore.classList.remove('hidden');
       let lightbox = new SimpleLightbox('.gallery a');
       lightbox.refresh();
       lightbox.on('show.simplelightbox');
+      if (totalHits <= api.perPage) {
+        refs.loadMore.classList.add('hidden');
+      }
     });
   } catch (error) {
     console.log(error);
