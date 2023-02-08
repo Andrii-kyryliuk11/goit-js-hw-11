@@ -1,11 +1,12 @@
 import API from './API';
-let request = '';
 import Notiflix from 'notiflix';
 import SimpleLightbox from 'simplelightbox';
 import 'simplelightbox/dist/simple-lightbox.min.css';
 
 const api = new API();
+let lightbox = new SimpleLightbox('.gallery a');
 let totalHits = 0;
+let request = '';
 
 const refs = {
   button: document.querySelector("[type='submit']"),
@@ -15,40 +16,55 @@ const refs = {
   loadMore: document.querySelector('.load-more'),
 };
 
-let lightbox = new SimpleLightbox('.gallery a');
-lightbox.on('show.simplelightbox');
-
 refs.form.addEventListener('submit', onsub);
 refs.loadMore.addEventListener('click', onLoadMoreClick);
 
-function onsub(e) {
+async function onsub(e) {
   e.preventDefault();
-  request = refs.input.value;
+  api.page = 1;
+  request = refs.input.value.trim();
+  refs.loadMore.classList.add('hidden');
   if (request === '') {
     Notiflix.Notify.failure(`Please,type something.`);
     return;
   }
   refs.form.classList.add('search-form__submited');
   refs.gallery.innerHTML = '';
-  createMarkup();
+  try {
+    const goFetch = await api.fetchImages(request);
+    totalHits = goFetch.data.totalHits;
+    Notiflix.Notify.success(`Hooray! We found ${totalHits} images.`);
+    return onFetchResult(goFetch);
+  } catch (error) {
+    console.log(error);
+  }
 }
 
-async function createMarkup() {
-  try {
-    const array = [];
-    api.fetchImages(request).then(response => {
-      totalHits = response.data.totalHits;
-      if (totalHits === 0) {
-        Notiflix.Notify.failure(
-          'Sorry, there are no images matching your search query. Please try again.'
-        );
-        return;
-      }
+function onFetchResult(response) {
+  totalHits = response.data.totalHits;
+  if (totalHits === 0) {
+    refs.loadMore.classList.add('hidden');
+    Notiflix.Notify.failure(
+      'Sorry, there are no images matching your search query. Please try again.'
+    );
 
-      Notiflix.Notify.success(`Hooray! We found ${totalHits} images.`);
-      response.data.hits.forEach(image => {
-        array.push(
-          `<a class="gallery__item" href="${image.largeImageURL}">
+    return;
+  }
+  createMarkup(response);
+
+  if (totalHits <= api.perPage) {
+    refs.loadMore.classList.add('hidden');
+    return;
+  }
+
+  refs.loadMore.classList.remove('hidden');
+}
+
+function createMarkup(response) {
+  const array = [];
+  response.data.hits.forEach(image => {
+    array.push(
+      `<a class="gallery__item" href="${image.largeImageURL}">
           <div class="photo-card">
   <img class="gallery__image" src="${image.webformatURL}" alt="${image.tags}" loading="lazy" />
   <div class="info">
@@ -71,32 +87,26 @@ async function createMarkup() {
   </div>
 </div>
 </a>`
-        );
-      });
-      refs.gallery.insertAdjacentHTML('beforeend', array.join(''));
-      refs.loadMore.classList.remove('hidden');
-      let lightbox = new SimpleLightbox('.gallery a');
-      lightbox.refresh();
-      lightbox.on('show.simplelightbox');
-      if (totalHits <= api.perPage) {
-        refs.loadMore.classList.add('hidden');
-      }
-    });
+    );
+  });
+  refs.gallery.insertAdjacentHTML('beforeend', array.join(''));
+
+  lightbox.refresh();
+}
+
+async function onLoadMoreClick() {
+  api.page += 1;
+  try {
+    const goFetch = await api.fetchImages(request);
+    totalHits = goFetch.data.totalHits;
+    onFetchResult(goFetch);
+    if (totalHits <= api.page * api.perPage) {
+      refs.loadMore.classList.add('hidden');
+      Notiflix.Notify.failure(
+        `We're sorry, but you've reached the end of search results.`
+      );
+    }
   } catch (error) {
     console.log(error);
   }
-}
-
-function onLoadMoreClick() {
-  api.page += 1;
-  if (totalHits <= api.page * api.perPage) {
-    refs.loadMore.classList.add('hidden');
-    Notiflix.Notify.failure(
-      `We're sorry, but you've reached the end of search results.`
-    );
-
-    return;
-  }
-
-  createMarkup();
 }
